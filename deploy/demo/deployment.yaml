@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: helloworld
-  namespace: helloworld
+  name: simplewebapp
+  namespace: demo
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: helloworld
+      app: simplewebapp
   template:
     metadata:
       labels:
-        app: helloworld
+        app: simplewebapp
     spec:
       nodeSelector:
         kubernetes.io/os: windows
       containers:
-      - image: image
-        name: helloworld
+      - image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
+        name: simplewebapp
         resources:
           requests:
             cpu: 100m
