@@ -1,9 +1,8 @@
-# https://hub.docker.com/_/microsoft-windows-servercore
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
+# https://hub.docker.com/_/microsoft-windows-servercore-iis
+FROM mcr.microsoft.com/windows/servercore/iis:20220119-windowsservercore-ltsc2022
 
-# Uses dism.exe to install the IIS role.
-RUN dism.exe /online /enable-feature /all /featurename:iis-webserver /NoRestart
+RUN powershell -NoProfile -Command Remove-Item -Recurse C:\inetpub\wwwroot\*
 
-COPY index.html c:/inetpub/wwwroot
+WORKDIR /inetpub/wwwroot
 
-CMD [ "cmd" ]
+COPY index.html .
