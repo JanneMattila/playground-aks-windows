@@ -1,3 +1,7 @@
 **/packages/
 **/[Bb]in/
 **/[Oo]bj/
+**/.vs/
+**/bin/
+**/obj/
+*.user
