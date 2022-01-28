@@ -74,7 +74,7 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.21.2 `
+  --kubernetes-version 1.22.4 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
@@ -89,20 +89,24 @@ az aks create -g $resourceGroupName -n $aksName `
   -o table
 
 # Create secondary node pool for Windows workloads
-$nodepool2 = "nodepool2"
+$nodepool2 = "winos"
 az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
   --name $nodepool2 `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
   --os-type Windows `
+  --aks-custom-headers WindowsContainerRuntime=containerd `
   --max-pods 150
 
 sudo az aks install-cli
 
 az aks get-credentials -n $aksName -g $resourceGroupName --overwrite-existing
 
-kubectl get nodes
+kubectl get nodes -o wide
+kubectl get nodes -L agentpool
+kubectl get nodes -o custom-columns="NAME:.metadata.name, OS:.status.nodeInfo.operatingSystem, IMAGE:.status.nodeInfo.osImage, RUNTIME:.status.nodeInfo.containerRuntimeVersion"
+kubectl get nodes -o yaml
 
 ############################################
 #  _   _      _                      _
@@ -113,25 +117,33 @@ kubectl get nodes
 # Tester web app demo
 ############################################
 
-# Deploy all items from demos namespace
-kubectl apply -f demos/namespace.yaml
-kubectl apply -f demos/deployment.yaml
-kubectl apply -f demos/service.yaml
+# Deploy all items from helloworld namespace
+kubectl apply -f deploy/helloworld/namespace.yaml
+kubectl apply -f deploy/helloworld/deployment.yaml
+kubectl apply -f deploy/helloworld/service.yaml
 
-kubectl get deployment -n demos
-kubectl describe deployment -n demos
+kubectl get deployment -n helloworld
+kubectl describe deployment -n helloworld
 
-$pod1 = (kubectl get pod -n demos -o name | head -n 1)
+kubectl get pod -n helloworld
+$pod1 = (kubectl get pod -n helloworld -o name | head -n 1)
 echo $pod1
 
 kubectl describe $pod1 -n demos
-kubectl get service -n demos
+kubectl get service -n helloworld
 
 $ingressip = (kubectl get service -n demos -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
 echo $ingressip
 
 curl $ingressip
 # -> <html><body>Hello there!</body></html>
+
+kubectl apply -f deploy/aspnet/namespace.yaml
+kubectl apply -f deploy/aspnet/deployment.yaml
+kubectl apply -f deploy/aspnet/service.yaml
+
+kubectl get pod -n aspnet
+kubectl get service -n aspnet
 
 # ##########################################################
 #     _         _                        _   _
@@ -144,6 +156,17 @@ curl $ingressip
 
 az acr build --registry $acrName --platform windows --image "win-helloworld:v1" .\src\helloworld\
 az acr build --registry $acrName --platform windows --image "win-webapp:v1" .\src\aspnet\
+
+$sizeInBytes = (az acr repository show-manifests -n $acrName --repository win-helloworld --detail --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
+$sizeInGB = [math]::Round($sizeInBytes / 1GB, 2)
+
+# From: https://github.com/Azure/acr/issues/169
+$repositories = (az acr repository list -n $acrName -o tsv)
+$repositories
+
+foreach ($repo in $repositories) {
+  az acr repository show-manifests -n $acrName --repository $repo --detail --query '[].{Size: imageSize, Tags: tags[0],Created: createdTime, Architecture: architecture, OS: os}' -o tsv
+}
 
 cat <<EOF > az-automation.yaml
 apiVersion: apps/v1
