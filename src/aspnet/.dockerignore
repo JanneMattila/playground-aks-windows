@@ -5,3 +5,7 @@
 **/bin/
 **/obj/
 *.user
+*.nupkg
+*.dll
+*.pdb
+*.p7s

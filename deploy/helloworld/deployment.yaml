@@ -16,7 +16,7 @@ spec:
       nodeSelector:
         kubernetes.io/os: windows
       containers:
-      - image: image
+      - image: __acrName__.azurecr.io/win-helloworld:__imageTag__
         name: helloworld
         resources:
           requests:

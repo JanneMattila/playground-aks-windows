@@ -99,66 +99,25 @@ az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
   --aks-custom-headers WindowsContainerRuntime=containerd `
   --max-pods 150
 
-sudo az aks install-cli
-
-az aks get-credentials -n $aksName -g $resourceGroupName --overwrite-existing
-
-kubectl get nodes -o wide
-kubectl get nodes -L agentpool
-kubectl get nodes -o custom-columns="NAME:.metadata.name, OS:.status.nodeInfo.operatingSystem, IMAGE:.status.nodeInfo.osImage, RUNTIME:.status.nodeInfo.containerRuntimeVersion"
-kubectl get nodes -o yaml
-
-############################################
-#  _   _      _                      _
-# | \ | | ___| |___      _____  _ __| | __
-# |  \| |/ _ \ __\ \ /\ / / _ \| '__| |/ /
-# | |\  |  __/ |_ \ V  V / (_) | |  |   <
-# |_| \_|\___|\__| \_/\_/ \___/|_|  |_|\_\
-# Tester web app demo
-############################################
-
-# Deploy all items from helloworld namespace
-kubectl apply -f deploy/helloworld/namespace.yaml
-kubectl apply -f deploy/helloworld/deployment.yaml
-kubectl apply -f deploy/helloworld/service.yaml
-
-kubectl get deployment -n helloworld
-kubectl describe deployment -n helloworld
-
-kubectl get pod -n helloworld
-$pod1 = (kubectl get pod -n helloworld -o name | head -n 1)
-echo $pod1
-
-kubectl describe $pod1 -n demos
-kubectl get service -n helloworld
-
-$ingressip = (kubectl get service -n demos -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
-echo $ingressip
-
-curl $ingressip
-# -> <html><body>Hello there!</body></html>
-
-kubectl apply -f deploy/aspnet/namespace.yaml
-kubectl apply -f deploy/aspnet/deployment.yaml
-kubectl apply -f deploy/aspnet/service.yaml
-
-kubectl get pod -n aspnet
-kubectl get service -n aspnet
-
-# ##########################################################
-#     _         _                        _   _
-#    / \  _   _| |_ ___  _ __ ___   __ _| |_(_) ___  _ __
-#   / _ \| | | | __/ _ \| '_ ` _ \ / _` | __| |/ _ \| '_ \
-#  / ___ \ |_| | || (_) | | | | | | (_| | |_| | (_) | | | |
-# /_/   \_\__,_|\__\___/|_| |_| |_|\__,_|\__|_|\___/|_| |_|
-# Azure CLI automation demo
-# ##########################################################
+# #######################
+#     _    ____ ____
+#    / \  / ___|  _ \
+#   / _ \| |   | |_) |
+#  / ___ \ |___|  _ <
+# /_/   \_\____|_| \_\
+# Build
+# #######################
 
 az acr build --registry $acrName --platform windows --image "win-helloworld:v1" .\src\helloworld\
 az acr build --registry $acrName --platform windows --image "win-webapp:v1" .\src\aspnet\
 
-$sizeInBytes = (az acr repository show-manifests -n $acrName --repository win-helloworld --detail --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
-$sizeInGB = [math]::Round($sizeInBytes / 1GB, 2)
+# Size of "win-helloworld:
+$sizeInBytes1 = (az acr repository show-manifests -n $acrName --repository "win-helloworld" --detail --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
+$sizeInGB1 = [math]::Round($sizeInBytes1 / 1GB, 2)
+
+# Size of "win-webapp:
+$sizeInBytes2 = (az acr repository show-manifests -n $acrName --repository "win-webapp" --detail --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
+$sizeInGB2 = [math]::Round($sizeInBytes2 / 1GB, 2)
 
 # From: https://github.com/Azure/acr/issues/169
 $repositories = (az acr repository list -n $acrName -o tsv)
@@ -168,44 +127,70 @@ foreach ($repo in $repositories) {
   az acr repository show-manifests -n $acrName --repository $repo --detail --query '[].{Size: imageSize, Tags: tags[0],Created: createdTime, Architecture: architecture, OS: os}' -o tsv
 }
 
-cat <<EOF > az-automation.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-name: az-automation
-namespace: az-automation
-spec:
-replicas: 1
-selector:
-matchLabels:
-app: az-automation
-template:
-metadata:
-labels:
-app: az-automation
-spec:
-containers:
-- image: $acrName.azurecr.io/az-cli-automation-demo:v1
-name: az-automation
-EOF
-cat az-automation.yaml
+# ##################################
+#  ____             _
+# |  _ \  ___ _ __ | | ___  _   _
+# | | | |/ _ \ '_ \| |/ _ \| | | |
+# | |_| |  __/ |_) | | (_) | |_| |
+# |____/ \___| .__/|_|\___/ \__, |
+#            |_|            |___/
+# Windows and Linux workloads
+# ##################################
+sudo az aks install-cli
 
-kubectl apply -f az-automation.yaml
+az aks get-credentials -n $aksName -g $resourceGroupName --overwrite-existing
 
-kubectl get deployment -n az-automation
-kubectl describe deployment -n az-automation
+kubectl get nodes -o wide
+kubectl get nodes -L agentpool
+kubectl get nodes -o custom-columns="NAME:.metadata.name, OS:.status.nodeInfo.operatingSystem, IMAGE:.status.nodeInfo.osImage, RUNTIME:.status.nodeInfo.containerRuntimeVersion"
+kubectl get nodes -o yaml
 
-automationpod1=$(kubectl get pod -n az-automation -o name | head -n 1)
-echo $automationpod1
-kubectl logs $automationpod1 -n az-automation
-kubectl exec --stdin --tty $automationpod1 -n az-automation -- /bin/sh
+# Deploy all items from helloworld namespace
+kubectl apply -f deploy/helloworld/namespace.yaml
+Get-Content deploy/helloworld/deployment.yaml | `
+  ForEach-Object { $_ -Replace "__acrName__", $acrName } | `
+  ForEach-Object { $_ -Replace "__imageTag__", "v1" } | `
+  kubectl apply -f -
+kubectl apply -f deploy/helloworld/service.yaml
 
-# You can test this even yourself
-az login --identity -o table
-az group list -o table
+kubectl get deployment -n helloworld
+kubectl describe deployment -n helloworld
 
-# Exit container
-exit
+kubectl get pod -n helloworld
+$helloworld_pod = (kubectl get pod -n helloworld -o name | Select-Object -First 1)
+echo $helloworld_pod
+
+kubectl describe $helloworld_pod -n helloworld
+kubectl get service -n helloworld
+
+$helloworld_ip = (kubectl get service -n helloworld -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
+echo $helloworld_ip
+
+curl $helloworld_ip
+# -> <html>...Hello World from Windows Container running in AKS...</html>
+
+# Deploy all items from aspnet namespace
+kubectl apply -f deploy/aspnet/namespace.yaml
+Get-Content deploy/aspnet/deployment.yaml | `
+  ForEach-Object { $_ -Replace "__acrName__", $acrName } | `
+  ForEach-Object { $_ -Replace "__imageTag__", "v1" } | `
+  kubectl apply -f -
+kubectl apply -f deploy/aspnet/service.yaml
+
+kubectl get deployment -n aspnet
+kubectl describe deployment -n aspnet
+
+kubectl get pod -n aspnet
+$aspnet_pod = (kubectl get pod -n aspnet -o name | Select-Object -First 1)
+echo $aspnet_pod
+
+kubectl describe $aspnet_pod -n aspnet
+kubectl get service -n aspnet
+
+$aspnet_ip = (kubectl get service -n aspnet -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
+echo $aspnet_ip
+
+curl $aspnet_ip
 
 # Wipe out the resources
 az group delete --name $resourceGroupName -y

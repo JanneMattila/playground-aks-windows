@@ -16,7 +16,7 @@ spec:
       nodeSelector:
         kubernetes.io/os: windows
       containers:
-      - image: image
+      - image: __acrName__.azurecr.io/win-webapp:__imageTag__
         name: webapp
         resources:
           requests:
