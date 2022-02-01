@@ -11,9 +11,9 @@ COPY WebApp/*.config ./WebApp/
 RUN nuget restore
 
 COPY WebApp/. ./WebApp/
-RUN msbuild /p:Configuration=Release
+RUN msbuild /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile.pubxml
 
 # https://hub.docker.com/_/microsoft-dotnet-framework-aspnet/
 FROM mcr.microsoft.com/dotnet/framework/aspnet:4.8-20220111-windowsservercore-ltsc2019 AS base
 WORKDIR /inetpub/wwwroot
-COPY --from=Build /app/WebApp/. ./
+COPY --from=Build /app/WebApp/bin/app.publish/. ./
