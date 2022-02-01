@@ -29,3 +29,5 @@ spec:
         - containerPort: 80
           name: http
           protocol: TCP
+        # For configurations in .NET Framework apps:
+        # https://docs.microsoft.com/en-us/aspnet/config-builder

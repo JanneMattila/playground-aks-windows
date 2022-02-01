@@ -123,8 +123,10 @@ $sizeInGB2 = [math]::Round($sizeInBytes2 / 1GB, 2)
 $repositories = (az acr repository list -n $acrName -o tsv)
 $repositories
 
+az acr repository list -n $acrName -o json
 foreach ($repo in $repositories) {
-  az acr repository show-manifests -n $acrName --repository $repo --detail --query '[].{Size: imageSize, Tags: tags[0],Created: createdTime, Architecture: architecture, OS: os}' -o tsv
+  "Repository: $repo"
+  az acr repository show-manifests -n $acrName --repository $repo --detail --query '[].{Name: name, Size: imageSize, Tags: tags[0],Created: createdTime, Architecture: architecture, OS: os}' -o table
 }
 
 # ##################################
