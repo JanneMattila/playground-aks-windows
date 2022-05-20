@@ -162,6 +162,14 @@ kubectl get pod -n helloworld
 $helloworld_pod = (kubectl get pod -n helloworld -o name | Select-Object -First 1)
 echo $helloworld_pod
 
+####
+# Connect to using "cmd.exe":
+kubectl exec --stdin --tty $helloworld_pod -n helloworld -- cmd
+
+# Exit container
+exit
+####
+
 kubectl describe $helloworld_pod -n helloworld
 kubectl get service -n helloworld
 
