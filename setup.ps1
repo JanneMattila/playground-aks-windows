@@ -7,7 +7,8 @@ $acrName = "myacrwin0000010"
 $workspaceName = "mywinworkspace"
 $vnetName = "mywin-vnet"
 $subnetAks = "AksSubnet"
-$identityName = "myakswin"
+$clusterIdentityName = "myakswin-cluster"
+$kubeletIdentityName = "myakswin-kubelet"
 $resourceGroupName = "rg-myakswin"
 $location = "westeurope"
 
@@ -37,7 +38,7 @@ az provider register --namespace Microsoft.ContainerService
 $acrid = (az acr create -l $location -g $resourceGroupName -n $acrName --sku Basic --query id -o tsv)
 echo $acrid
 
-$aadAdmingGroup = (az ad group list --display-name $aadAdminGroupContains --query [].objectId -o tsv)
+$aadAdmingGroup = (az ad group list --display-name $aadAdminGroupContains --query [].id -o tsv)
 echo $aadAdmingGroup
 
 $workspaceid = (az monitor log-analytics workspace create -g $resourceGroupName -n $workspaceName --query id -o tsv)
@@ -53,8 +54,11 @@ $subnetaksid = (az network vnet subnet create -g $resourceGroupName --vnet-name 
     --query id -o tsv)
 echo $subnetaksid
 
-$identityid = (az identity create --name $identityName --resource-group $resourceGroupName --query id -o tsv)
-echo $identityid
+$clusterIdentityId = (az identity create --name $clusterIdentityName --resource-group $resourceGroupName --query id -o tsv)
+echo $clusterIdentityId
+
+$kubeletIdentityId = (az identity create --name $kubeletIdentityName --resource-group $resourceGroupName --query id -o tsv)
+echo $kubeletIdentityId
 
 az aks get-versions -l $location -o table
 
@@ -84,7 +88,8 @@ az aks create -g $resourceGroupName -n $aksName `
   --attach-acr $acrid `
   --load-balancer-sku standard `
   --vnet-subnet-id $subnetaksid `
-  --assign-identity $identityid `
+  --assign-identity $clusterIdentityId `
+  --assign-kubelet-identity $kubeletIdentityId `
   --api-server-authorized-ip-ranges $myip `
   -o table
 
