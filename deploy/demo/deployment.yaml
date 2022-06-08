@@ -4,7 +4,7 @@ metadata:
   name: simplewebapp
   namespace: demo
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: simplewebapp
@@ -16,16 +16,16 @@ spec:
       nodeSelector:
         kubernetes.io/os: windows
       containers:
-      - image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
-        name: simplewebapp
-        resources:
-          requests:
-            cpu: 100m
-            memory: 300M
-          limits:
-            cpu: 1
-            memory: 800M
-        ports:
-        - containerPort: 80
-          name: http
-          protocol: TCP
+        - image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
+          name: simplewebapp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 300M
+            limits:
+              cpu: 1
+              memory: 800M
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP

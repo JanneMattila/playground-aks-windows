@@ -7,6 +7,7 @@ $acrName = "myacrwin0000010"
 $workspaceName = "mywinworkspace"
 $vnetName = "mywin-vnet"
 $subnetAks = "AksSubnet"
+$nsgAks = "nsg-AksSubnet"
 $clusterIdentityName = "myakswin-cluster"
 $kubeletIdentityName = "myakswin-kubelet"
 $resourceGroupName = "rg-myakswin"
@@ -18,7 +19,7 @@ az account set --subscription $subscriptionName -o table
 
 $subscriptionID = (az account show -o tsv --query id)
 $resourcegroupid = (az group create -l $location -n $resourceGroupName -o table --query id -o tsv)
-echo $resourcegroupid
+$resourcegroupid
 
 # Prepare extensions and providers
 az extension add --upgrade --yes --name aks-preview
@@ -36,35 +37,35 @@ az provider register --namespace Microsoft.ContainerService
 # az extension remove --name aks-preview
 
 $acrid = (az acr create -l $location -g $resourceGroupName -n $acrName --sku Basic --query id -o tsv)
-echo $acrid
+$acrid
 
 $aadAdmingGroup = (az ad group list --display-name $aadAdminGroupContains --query [].id -o tsv)
-echo $aadAdmingGroup
+$aadAdmingGroup
 
 $workspaceid = (az monitor log-analytics workspace create -g $resourceGroupName -n $workspaceName --query id -o tsv)
-echo $workspaceid
+$workspaceid
 
 $vnetid = (az network vnet create -g $resourceGroupName --name $vnetName `
     --address-prefix 10.0.0.0/8 `
     --query newVNet.id -o tsv)
-echo $vnetid
+$vnetid
 
 $subnetaksid = (az network vnet subnet create -g $resourceGroupName --vnet-name $vnetName `
     --name $subnetAks --address-prefixes 10.2.0.0/20 `
     --query id -o tsv)
-echo $subnetaksid
+$subnetaksid
 
 $clusterIdentityId = (az identity create --name $clusterIdentityName --resource-group $resourceGroupName --query id -o tsv)
-echo $clusterIdentityId
+$clusterIdentityId
 
 $kubeletIdentityId = (az identity create --name $kubeletIdentityName --resource-group $resourceGroupName --query id -o tsv)
-echo $kubeletIdentityId
+$kubeletIdentityId
 
 az aks get-versions -l $location -o table
 
 # Note: for public cluster you need to authorize your ip to use api
 $myip = (curl --no-progress-meter https://api.ipify.org)
-echo $myip
+$myip
 
 # Note about private clusters:
 # https://docs.microsoft.com/en-us/azure/aks/private-clusters
@@ -78,7 +79,7 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.22.4 `
+  --kubernetes-version 1.23.5 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
@@ -112,6 +113,7 @@ az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
 # /_/   \_\____|_| \_\
 # Build
 # #######################
+#region ACR Build
 
 az acr build --registry $acrName --platform windows --image "win-helloworld:v1" .\src\helloworld\
 az acr build --registry $acrName --platform windows --image "win-webapp:v1" .\src\aspnet\
@@ -134,6 +136,34 @@ foreach ($repo in $repositories) {
   az acr repository show-manifests -n $acrName --repository $repo --detail --query '[].{Name: name, Size: imageSize, Tags: tags[0],Created: createdTime, Architecture: architecture, OS: os}' -o table
 }
 
+#endregion
+
+##########################
+#  _   _ ____   ____
+# | \ | / ___| / ___|
+# |  \| \___ \| |  _
+# | |\  |___) | |_| |
+# |_| \_|____/ \____|
+# Network Security Group
+##########################
+#region NSG
+
+az network nsg create -n $nsgAks -g $resourceGroupName
+az network vnet subnet update -g $resourceGroupName --vnet-name $vnetName --name $subnetAks --network-security-group $nsgAks
+
+$myip
+az network nsg rule create `
+  -g $resourceGroupName `
+  --nsg-name $nsgAks `
+  -n "allow-myip" --priority 1000 `
+  --source-address-prefixes "$myip/32" `
+  --destination-address-prefixes "*" `
+  --destination-port-ranges '80' `
+  --access Allow `
+  --description "Allow access to port 80 for myip"
+
+#endregion
+
 # ##################################
 #  ____             _
 # |  _ \  ___ _ __ | | ___  _   _
@@ -143,7 +173,7 @@ foreach ($repo in $repositories) {
 #            |_|            |___/
 # Windows and Linux workloads
 # ##################################
-sudo az aks install-cli
+az aks install-cli
 
 az aks get-credentials -n $aksName -g $resourceGroupName --overwrite-existing
 
@@ -151,6 +181,33 @@ kubectl get nodes -o wide
 kubectl get nodes -L agentpool
 kubectl get nodes -o custom-columns="NAME:.metadata.name, OS:.status.nodeInfo.operatingSystem, IMAGE:.status.nodeInfo.osImage, RUNTIME:.status.nodeInfo.containerRuntimeVersion"
 kubectl get nodes -o yaml
+
+
+# Deploy all items from demo namespace
+kubectl apply -f deploy/demo/namespace.yaml
+kubectl apply -f deploy/demo/service.yaml
+kubectl apply -f deploy/demo/deployment.yaml
+
+kubectl get deployment -n demo
+kubectl describe deployment -n demo
+kubectl get pod -n demo
+kubectl describe pod -n demo
+kubectl get svc -n demo
+
+$demo_ip = (kubectl get service -n demo -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
+$demo_ip
+
+kubectl get pod -n demo
+$demo_pod = (kubectl get pod -n demo -o name | Select-Object -First 1)
+$demo_pod
+
+####
+# Connect to using "cmd.exe":
+kubectl exec --stdin --tty $demo_pod -n demo -- cmd
+
+# Exit container
+exit
+####
 
 # Deploy all items from helloworld namespace
 kubectl apply -f deploy/helloworld/namespace.yaml
@@ -165,7 +222,7 @@ kubectl describe deployment -n helloworld
 
 kubectl get pod -n helloworld
 $helloworld_pod = (kubectl get pod -n helloworld -o name | Select-Object -First 1)
-echo $helloworld_pod
+$helloworld_pod
 
 ####
 # Connect to using "cmd.exe":
@@ -179,7 +236,7 @@ kubectl describe $helloworld_pod -n helloworld
 kubectl get service -n helloworld
 
 $helloworld_ip = (kubectl get service -n helloworld -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
-echo $helloworld_ip
+$helloworld_ip
 
 curl $helloworld_ip
 # -> <html>...Hello World from Windows Container running in AKS...</html>
@@ -197,13 +254,13 @@ kubectl describe deployment -n aspnet
 
 kubectl get pod -n aspnet
 $aspnet_pod = (kubectl get pod -n aspnet -o name | Select-Object -First 1)
-echo $aspnet_pod
+$aspnet_pod
 
 kubectl describe $aspnet_pod -n aspnet
 kubectl get service -n aspnet
 
 $aspnet_ip = (kubectl get service -n aspnet -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
-echo $aspnet_ip
+$aspnet_ip
 
 curl $aspnet_ip
 
