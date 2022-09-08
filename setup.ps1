@@ -17,9 +17,7 @@ $location = "westeurope"
 az login -o table
 az account set --subscription $subscriptionName -o table
 
-$subscriptionID = (az account show -o tsv --query id)
 $resourcegroupid = (az group create -l $location -n $resourceGroupName -o table --query id -o tsv)
-$resourcegroupid
 
 # Prepare extensions and providers
 az extension add --upgrade --yes --name aks-preview
@@ -79,7 +77,7 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.23.5 `
+  --kubernetes-version 1.24.3 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
