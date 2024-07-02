@@ -16,16 +16,16 @@ spec:
       nodeSelector:
         kubernetes.io/os: windows
       containers:
-      - image: __acrName__.azurecr.io/win-helloworld:__imageTag__
-        name: helloworld
-        resources:
-          requests:
-            cpu: 100m
-            memory: 300M
-          limits:
-            cpu: 1
-            memory: 800M
-        ports:
-        - containerPort: 80
-          name: http
-          protocol: TCP
+        - image: __acrName__.azurecr.io/win-helloworld:__imageTag__
+          name: helloworld
+          resources:
+            requests:
+              cpu: 100m
+              memory: 300M
+            limits:
+              cpu: 1
+              memory: 800M
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP

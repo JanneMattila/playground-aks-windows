@@ -1,6 +1,6 @@
 # All the variables for the deployment
-$subscriptionName = "AzureDev"
-$aadAdminGroupContains = "janne''s"
+$subscriptionName = "development"
+$aadAdminGroupContains = "janneops"
 
 $aksName = "myakswin"
 $acrName = "myacrwin0000010"
@@ -11,7 +11,7 @@ $nsgAks = "nsg-AksSubnet"
 $clusterIdentityName = "myakswin-cluster"
 $kubeletIdentityName = "myakswin-kubelet"
 $resourceGroupName = "rg-myakswin"
-$location = "westeurope"
+$location = "swedencentral"
 
 # Login and set correct context
 az login -o table
@@ -62,7 +62,7 @@ $kubeletIdentityId
 az aks get-versions -l $location -o table
 
 # Note: for public cluster you need to authorize your ip to use api
-$myip = (curl --no-progress-meter https://api.ipify.org)
+$myip = (curl --no-progress-meter https://myip.jannemattila.com)
 $myip
 
 # Note about private clusters:
@@ -77,7 +77,7 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.24.3 `
+  --kubernetes-version 1.29.4 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
@@ -96,11 +96,10 @@ az aks create -g $resourceGroupName -n $aksName `
 $nodepool2 = "winos"
 az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
   --name $nodepool2 `
-  --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
+  --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 3 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
   --os-type Windows `
-  --aks-custom-headers WindowsContainerRuntime=containerd `
   --max-pods 150
 
 # #######################
@@ -113,16 +112,19 @@ az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
 # #######################
 #region ACR Build
 
-az acr build --registry $acrName --platform windows --image "win-helloworld:v1" .\src\helloworld\
-az acr build --registry $acrName --platform windows --image "win-webapp:v1" .\src\aspnet\
+$imageTag = Get-Date -Format "yyyyMMddHHmmss"
+az acr build --registry $acrName --platform windows --image "win-helloworld:$imageTag" .\src\helloworld\
+az acr build --registry $acrName --platform windows --image "win-webapp:$imageTag" .\src\aspnet\
 
 # Size of "win-helloworld:
-$sizeInBytes1 = (az acr repository show-manifests -n $acrName --repository "win-helloworld" --detail --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
+$sizeInBytes1 = (az acr manifest list-metadata -r $acrName -n "win-helloworld" --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
 $sizeInGB1 = [math]::Round($sizeInBytes1 / 1GB, 2)
+$sizeInGB1
 
 # Size of "win-webapp:
-$sizeInBytes2 = (az acr repository show-manifests -n $acrName --repository "win-webapp" --detail --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
+$sizeInBytes2 = (az acr manifest list-metadata -r $acrName -n "win-webapp" --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
 $sizeInGB2 = [math]::Round($sizeInBytes2 / 1GB, 2)
+$sizeInGB2
 
 # From: https://github.com/Azure/acr/issues/169
 $repositories = (az acr repository list -n $acrName -o tsv)
@@ -131,7 +133,7 @@ $repositories
 az acr repository list -n $acrName -o json
 foreach ($repo in $repositories) {
   "Repository: $repo"
-  az acr repository show-manifests -n $acrName --repository $repo --detail --query '[].{Name: name, Size: imageSize, Tags: tags[0],Created: createdTime, Architecture: architecture, OS: os}' -o table
+  az acr manifest list-metadata -r $acrName -n $repo --query '[].{Name: name, Size: imageSize, Tags: tags[0],Created: createdTime, Architecture: architecture, OS: os}' -o table
 }
 
 #endregion
@@ -174,12 +176,12 @@ az network nsg rule create `
 az aks install-cli
 
 az aks get-credentials -n $aksName -g $resourceGroupName --overwrite-existing
+kubelogin convert-kubeconfig -l azurecli
 
 kubectl get nodes -o wide
 kubectl get nodes -L agentpool
 kubectl get nodes -o custom-columns="NAME:.metadata.name, OS:.status.nodeInfo.operatingSystem, IMAGE:.status.nodeInfo.osImage, RUNTIME:.status.nodeInfo.containerRuntimeVersion"
 kubectl get nodes -o yaml
-
 
 # Deploy all items from demo namespace
 kubectl apply -f deploy/demo/namespace.yaml
@@ -211,7 +213,7 @@ exit
 kubectl apply -f deploy/helloworld/namespace.yaml
 Get-Content deploy/helloworld/deployment.yaml | `
   ForEach-Object { $_ -Replace "__acrName__", $acrName } | `
-  ForEach-Object { $_ -Replace "__imageTag__", "v1" } | `
+  ForEach-Object { $_ -Replace "__imageTag__", $imageTag } | `
   kubectl apply -f -
 kubectl apply -f deploy/helloworld/service.yaml
 
@@ -243,7 +245,7 @@ curl $helloworld_ip
 kubectl apply -f deploy/aspnet/namespace.yaml
 Get-Content deploy/aspnet/deployment.yaml | `
   ForEach-Object { $_ -Replace "__acrName__", $acrName } | `
-  ForEach-Object { $_ -Replace "__imageTag__", "v1" } | `
+  ForEach-Object { $_ -Replace "__imageTag__", $imageTag } | `
   kubectl apply -f -
 kubectl apply -f deploy/aspnet/service.yaml
 

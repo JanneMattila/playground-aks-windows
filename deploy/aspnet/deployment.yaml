@@ -16,18 +16,18 @@ spec:
       nodeSelector:
         kubernetes.io/os: windows
       containers:
-      - image: __acrName__.azurecr.io/win-webapp:__imageTag__
-        name: webapp
-        resources:
-          requests:
-            cpu: 100m
-            memory: 300M
-          limits:
-            cpu: 1
-            memory: 800M
-        ports:
-        - containerPort: 80
-          name: http
-          protocol: TCP
-        # For configurations in .NET Framework apps:
-        # https://docs.microsoft.com/en-us/aspnet/config-builder
+        - image: __acrName__.azurecr.io/win-webapp:__imageTag__
+          name: webapp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 300M
+            limits:
+              cpu: 1
+              memory: 800M
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+          # For configurations in .NET Framework apps:
+          # https://docs.microsoft.com/en-us/aspnet/config-builder
