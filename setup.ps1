@@ -1,5 +1,5 @@
 # All the variables for the deployment
-$subscriptionName = "development"
+$subscriptionName = "workload1-production-online"
 $aadAdminGroupContains = "janneops"
 
 $aksName = "myakswin"
@@ -77,11 +77,12 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.29.4 `
+  --kubernetes-version 1.32.3 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
   --disable-local-accounts `
+  --no-ssh-key `
   --aad-admin-group-object-ids $aadAdmingGroup `
   --workspace-resource-id $workspaceid `
   --attach-acr $acrid `
