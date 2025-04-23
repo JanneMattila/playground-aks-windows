@@ -115,7 +115,10 @@ az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
 
 $imageTag = Get-Date -Format "yyyyMMddHHmmss"
 az acr build --registry $acrName --platform windows --image "win-helloworld:$imageTag" .\src\helloworld\
+
 az acr build --registry $acrName --platform windows --image "win-webapp:$imageTag" .\src\aspnet\
+
+az acr build --registry $acrName --platform windows --image "win-webapp-network-tester:$imageTag" .\src\webapp-network-tester\
 
 # Size of "win-helloworld:
 $sizeInBytes1 = (az acr manifest list-metadata -r $acrName -n "win-helloworld" --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
@@ -264,6 +267,29 @@ $aspnet_ip = (kubectl get service -n aspnet -o jsonpath="{.items[0].status.loadB
 $aspnet_ip
 
 curl $aspnet_ip
+
+# Deploy all items from webapp-network-tester namespace
+kubectl apply -f deploy/webapp-network-tester/namespace.yaml
+Get-Content deploy/webapp-network-tester/deployment.yaml | `
+  ForEach-Object { $_ -Replace "__acrName__", $acrName } | `
+  ForEach-Object { $_ -Replace "__imageTag__", $imageTag } | `
+  kubectl apply -f -
+kubectl apply -f deploy/webapp-network-tester/service.yaml
+
+kubectl get deployment -n webapp-network-tester
+kubectl describe deployment -n webapp-network-tester
+
+kubectl get pod -n webapp-network-tester
+$webapp_network_tester_pod = (kubectl get pod -n webapp-network-tester -o name | Select-Object -First 1)
+$webapp_network_tester_pod
+
+kubectl describe $webapp_network_tester_pod -n webapp-network-tester
+kubectl get service -n webapp-network-tester
+
+$webapp_network_tester_ip = (kubectl get service -n webapp-network-tester -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
+$webapp_network_tester_ip
+
+curl $webapp_network_tester_ip
 
 # Wipe out the resources
 az group delete --name $resourceGroupName -y

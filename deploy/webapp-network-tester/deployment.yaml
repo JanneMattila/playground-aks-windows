@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-network-tester
+  namespace: webapp-network-tester
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp-network-tester
+  template:
+    metadata:
+      labels:
+        app: webapp-network-tester
+    spec:
+      nodeSelector:
+        kubernetes.io/os: windows
+      containers:
+        - image: __acrName__.azurecr.io/win-webapp-network-tester:__imageTag__
+          name: webapp-network-tester
+          resources:
+            requests:
+              cpu: 100m
+              memory: 300M
+            limits:
+              cpu: 1
+              memory: 800M
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
