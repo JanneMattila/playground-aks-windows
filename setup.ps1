@@ -23,13 +23,13 @@ $resourcegroupid = (az group create -l $location -n $resourceGroupName -o table 
 az extension add --upgrade --yes --name aks-preview
 
 # Enable features
-az feature register --namespace "Microsoft.ContainerService" --name "EnablePodIdentityPreview"
-az feature register --namespace "Microsoft.ContainerService" --name "AKS-ScaleDownModePreview"
-az feature register --namespace "Microsoft.ContainerService" --name "PodSubnetPreview"
-az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/EnablePodIdentityPreview')].{Name:name,State:properties.state}"
-az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/AKS-ScaleDownModePreview')].{Name:name,State:properties.state}"
-az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/PodSubnetPreview')].{Name:name,State:properties.state}"
-az provider register --namespace Microsoft.ContainerService
+# az feature register --namespace "Microsoft.ContainerService" --name "EnablePodIdentityPreview"
+# az feature register --namespace "Microsoft.ContainerService" --name "AKS-ScaleDownModePreview"
+# az feature register --namespace "Microsoft.ContainerService" --name "PodSubnetPreview"
+# az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/EnablePodIdentityPreview')].{Name:name,State:properties.state}"
+# az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/AKS-ScaleDownModePreview')].{Name:name,State:properties.state}"
+# az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/PodSubnetPreview')].{Name:name,State:properties.state}"
+# az provider register --namespace Microsoft.ContainerService
 
 # Remove extension in case conflicting previews
 # az extension remove --name aks-preview
@@ -77,7 +77,7 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.32.3 `
+  --kubernetes-version 1.33.5 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
@@ -280,6 +280,8 @@ kubectl get deployment -n webapp-network-tester
 kubectl describe deployment -n webapp-network-tester
 
 kubectl get pod -n webapp-network-tester
+kubectl describe pod -n webapp-network-tester
+
 $webapp_network_tester_pod = (kubectl get pod -n webapp-network-tester -o name | Select-Object -First 1)
 $webapp_network_tester_pod
 
@@ -290,6 +292,14 @@ $webapp_network_tester_ip = (kubectl get service -n webapp-network-tester -o jso
 $webapp_network_tester_ip
 
 curl $webapp_network_tester_ip
+
+####
+# Connect to using "cmd.exe":
+kubectl exec --stdin --tty $webapp_network_tester_pod -n helloworld -- cmd
+
+# Exit container
+exit
+####
 
 # Wipe out the resources
 az group delete --name $resourceGroupName -y
