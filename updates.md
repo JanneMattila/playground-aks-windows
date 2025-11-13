@@ -1,5 +1,7 @@
 # Updates
 
+Output from when applying Windows Updates to the Windows nodes in the AKS cluster:
+
 ```console
 $ $podName = kubectl get pods -l app=windows-updates -o jsonpath="{.items[0].metadata.name}"
 $ kubectl logs $podName
