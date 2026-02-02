@@ -77,7 +77,7 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.33.5 `
+  --kubernetes-version 1.34.2 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
@@ -231,6 +231,74 @@ $helloworld_pod
 ####
 # Connect to using "cmd.exe":
 kubectl exec --stdin --tty $helloworld_pod -n helloworld -- cmd
+
+# https://learn.microsoft.com/en-us/sysinternals/downloads/procmon
+mkdir C:\Temp
+curl https://live.sysinternals.com/Procmon.exe -o C:\Temp\Procmon.exe
+
+# Start Procmon in the background with logging enabled
+C:\Temp\Procmon.exe /accepteula /Minimized /BackingFile C:\Temp\procmonlog.pml
+
+# Generate some activity to capture (e.g., file operations, network, registry)
+dir C:\
+hostname
+ipconfig
+
+# Terminate Procmon gracefully (this stops logging and saves the file)
+C:\Temp\Procmon.exe /Terminate
+
+# Verify the log file was created
+dir C:\Temp\procmonlog.pml
+
+# Convert the .pml log to CSV for easier viewing
+C:\Temp\Procmon.exe /OpenLog C:\Temp\procmonlog.pml /SaveAs C:\Temp\procmonlog.csv
+
+# View the captured events (first 20 lines)
+type C:\Temp\procmonlog.csv | more
+
+# Exit container
+exit
+####
+
+# HostProcess container for running Procmon with full kernel access
+# https://learn.microsoft.com/en-us/virtualization/windowscontainers/kubernetes/hostprocess-containers
+kubectl apply -f deploy/demo/hostprocess-debug.yaml
+
+kubectl get pod -n demo -l app=windows-debug
+kubectl describe pod -n demo -l app=windows-debug
+
+$debug_pod = (kubectl get pod -n demo -l app=windows-debug -o name | Select-Object -First 1)
+$debug_pod
+
+####
+# Connect to HostProcess container (runs on host with SYSTEM privileges):
+kubectl exec --stdin --tty $debug_pod -n demo -- cmd
+
+# Note: HostProcess containers start in host's file system at C:\var\lib\kubelet\pods\...
+# Change to a known location first
+# https://learn.microsoft.com/en-us/sysinternals/downloads/procmon
+mkdir C:\Temp
+curl https://live.sysinternals.com/Procmon.exe -o C:\Temp\Procmon.exe
+
+# Start Procmon in the background with logging enabled
+C:\Temp\Procmon.exe /accepteula /Minimized /BackingFile C:\Temp\procmonlog.pml
+
+# Generate some activity to capture (e.g., file operations, network, registry)
+dir C:\
+hostname
+ipconfig
+
+# Terminate Procmon gracefully (this stops logging and saves the file)
+C:\Temp\Procmon.exe /Terminate
+
+# Verify the log file was created
+dir C:\Temp\procmonlog.pml
+
+# Convert the .pml log to CSV for easier viewing
+C:\Temp\Procmon.exe /OpenLog C:\Temp\procmonlog.pml /SaveAs C:\Temp\procmonlog.csv
+
+# View the captured events (first 20 lines)
+type C:\Temp\procmonlog.csv | more
 
 # Exit container
 exit

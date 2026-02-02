@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windows-debug
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: windows-debug
+  template:
+    metadata:
+      labels:
+        app: windows-debug
+    spec:
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\SYSTEM"
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: windows
+      containers:
+        - name: debug
+          image: mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
+          command:
+            - cmd.exe
+            - /c
+            - ping -t localhost > nul
+          securityContext:
+            windowsOptions:
+              hostProcess: true
+              runAsUserName: "NT AUTHORITY\\SYSTEM"

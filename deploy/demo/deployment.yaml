@@ -18,12 +18,15 @@ spec:
       containers:
         - image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
           name: simplewebapp
+          # securityContext:
+          #   windowsOptions:
+          #     runAsUserName: "ContainerAdministrator"
           resources:
             requests:
               cpu: 100m
               memory: 300M
             limits:
-              cpu: 1
+              cpu: "1"
               memory: 800M
           ports:
             - containerPort: 80
