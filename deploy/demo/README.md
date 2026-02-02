@@ -103,6 +103,6 @@ type C:\Temp\procmonlog.csv | more
 
 ## References
 
-- [HostProcess Containers Documentation](https://learn.microsoft.com/en-us/virtualization/windowscontainers/kubernetes/hostprocess-containers)
+- [HostProcess Containers Documentation](https://learn.microsoft.com/en-us/azure/aks/use-windows-hpc)
 - [Windows Container Security](https://learn.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/container-security)
 - [Sysinternals Procmon](https://learn.microsoft.com/en-us/sysinternals/downloads/procmon)
