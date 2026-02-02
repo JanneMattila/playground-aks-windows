@@ -264,6 +264,7 @@ exit
 # https://learn.microsoft.com/en-us/virtualization/windowscontainers/kubernetes/hostprocess-containers
 kubectl apply -f deploy/demo/hostprocess-debug.yaml
 
+kubectl get events -n demo
 kubectl get pod -n demo -l app=windows-debug
 kubectl describe pod -n demo -l app=windows-debug
 
@@ -368,6 +369,8 @@ kubectl exec --stdin --tty $webapp_network_tester_pod -n helloworld -- cmd
 # Exit container
 exit
 ####
+
+kubectl apply -f deploy/container-azm-ms-agentconfig.yaml
 
 # Wipe out the resources
 az group delete --name $resourceGroupName -y
