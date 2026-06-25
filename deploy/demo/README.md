@@ -90,6 +90,77 @@ C:\Temp\Procmon.exe /OpenLog C:\Temp\procmonlog.pml /SaveAs C:\Temp\procmonlog.c
 type C:\Temp\procmonlog.csv | more
 ```
 
+### Running pagefile commands
+
+```powershell
+# Deploy the HostProcess container
+kubectl apply -f deploy/demo/hostprocess-debug.yaml
+
+# Get the pod name
+$debug_pod = (kubectl get pod -n demo -l app=windows-debug -o name | Select-Object -First 1)
+
+# Connect to the container
+kubectl exec --stdin --tty $debug_pod -n demo -- powershell
+
+# Inside the container (which is actually on the host):
+
+# Is it system-managed, and what's the commit limit?
+Get-CimInstance Win32_ComputerSystem | Select-Object AutomaticManagedPagefile
+Get-CimInstance Win32_OperatingSystem | Select-Object TotalVirtualMemorySize, FreeVirtualMemory, SizeStoredInPagingFiles
+
+# Configured min/max (0/0 == system managed)
+Get-CimInstance Win32_PageFileSetting | Select-Object Name, InitialSize, MaximumSize
+
+# Actual current allocation and peak usage
+Get-CimInstance Win32_PageFileUsage | Select-Object Name, AllocatedBaseSize, CurrentUsage, PeakUsage
+
+# Commit limit vs commit charge (the numbers that matter for OOM headroom)
+Get-Counter '\Memory\Commit Limit','\Memory\Committed Bytes','\Memory\% Committed Bytes In Use'
+```
+
+```console
+PS C:\hpc> Get-CimInstance Win32_ComputerSystem | Select-Object AutomaticManagedPagefile
+
+AutomaticManagedPagefile
+------------------------
+                   False
+
+
+PS C:\hpc> Get-CimInstance Win32_OperatingSystem | Select-Object TotalVirtualMemorySize, FreeVirtualMemory, SizeStoredInPagingFiles
+
+TotalVirtualMemorySize FreeVirtualMemory SizeStoredInPagingFiles
+---------------------- ----------------- -----------------------
+              38791932          34109028                 5242880
+
+
+PS C:\hpc> Get-CimInstance Win32_PageFileSetting | Select-Object Name, InitialSize, MaximumSize
+
+Name            InitialSize MaximumSize
+----            ----------- -----------
+C:\pagefile.sys        8096        8096
+
+
+PS C:\hpc> Get-CimInstance Win32_PageFileUsage | Select-Object Name, AllocatedBaseSize, CurrentUsage, PeakUsage
+
+Name            AllocatedBaseSize CurrentUsage PeakUsage
+----            ----------------- ------------ ---------
+C:\pagefile.sys              5120            0         0
+
+
+PS C:\hpc> Get-Counter '\Memory\Commit Limit','\Memory\Committed Bytes','\Memory\% Committed Bytes In Use'
+
+Timestamp                  CounterSamples
+---------                  --------------
+6/25/2026 1:24:39 PM       \\akswin25000003\memory\commit limit :
+                           39722938368
+
+                           \\akswin25000003\memory\committed bytes :
+                           4795633664
+
+                           \\akswin25000003\memory\% committed bytes in use :
+                           12.0727062486281
+```
+
 ## Security Considerations
 
 | Aspect              | Standard Container    | HostProcess Container       |
