@@ -1,32 +1,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: webapp-network-tester
-  namespace: webapp-network-tester
+  name: kubernetesprobedemo
+  namespace: kubernetesprobedemo
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: webapp-network-tester
+      app: kubernetesprobedemo
   template:
     metadata:
       labels:
-        app: webapp-network-tester
+        app: kubernetesprobedemo
     spec:
       nodeSelector:
         kubernetes.io/os: windows
-        # kubernetes.io/os-sku: Windows2025
-        # agentpool: win25
       containers:
-        - image: __acrName__.azurecr.io/win-webapp-network-tester:__imageTag__
-          name: webapp-network-tester
+        - image: __acrName__.azurecr.io/kubernetesprobedemo:__imageTag__
+          name: kubernetesprobedemo
           resources:
             requests:
               cpu: 100m
-              memory: 300M
+              memory: 1000M
             limits:
               cpu: 1000m
-              memory: 800M
+              memory: 50000M
           ports:
             - containerPort: 80
               name: http

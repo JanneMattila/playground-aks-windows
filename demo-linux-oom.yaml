@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: oom-test-linux
+spec:
+  nodeSelector:
+    "kubernetes.io/os": linux
+  containers:
+  - name: memhog
+    # Same form as oom-test-windows, but on Linux the kernel cgroup OOM killer
+    # terminates the container the moment it exceeds the 200Mi limit ->
+    # reason=OOMKilled, exit code 137 (no need to trigger an error in code).
+    image: mcr.microsoft.com/powershell:lts-debian-12
+    command: ["pwsh", "-Command"]
+    args:
+      - |
+        $ErrorActionPreference = "SilentlyContinue"
+        $list = New-Object System.Collections.ArrayList
+        while ($true) {
+          $list.Add((New-Object byte[] (20MB))) | Out-Null
+          Start-Sleep -Milliseconds 100
+          "."
+        }
+    resources:
+      limits:
+        memory: "200Mi"
+      requests:
+        memory: "100Mi"
+  restartPolicy: Always

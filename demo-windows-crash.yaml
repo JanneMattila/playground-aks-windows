@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: oom-test-windows
+spec:
+  nodeSelector:
+    "kubernetes.io/os": windows
+  containers:
+  - name: memhog
+    image: mcr.microsoft.com/powershell:lts-nanoserver-ltsc2022
+    command: ["pwsh", "-Command"]
+    args:
+      # NOTE: Windows has no Linux OOM killer. The container will NOT report
+      # reason=OOMKilled / exit code 137. Instead the job-object memory limit
+      # makes the allocation throw OutOfMemoryException. ErrorActionPreference=Stop
+      # turns that into a terminating error so pwsh exits non-zero -> the container
+      # restarts (CrashLoopBackOff). That restart/Error is what you can detect.
+      - |
+        $ErrorActionPreference = "Stop"
+        $list = New-Object System.Collections.ArrayList
+        while ($true) {
+          $list.Add((New-Object byte[] (20MB))) | Out-Null
+          Start-Sleep -Milliseconds 100
+          "."
+        }
+    resources:
+      limits:
+        memory: "200Mi"
+      requests:
+        memory: "100Mi"
+  # Let it crash a few times so it shows up clearly, then back off
+  restartPolicy: Always

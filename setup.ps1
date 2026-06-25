@@ -21,6 +21,7 @@ $resourcegroupid = (az group create -l $location -n $resourceGroupName -o table 
 
 # Prepare extensions and providers
 az extension add --upgrade --yes --name aks-preview
+az extension remove --name aks-preview
 
 # Enable features
 # az feature register --namespace "Microsoft.ContainerService" --name "EnablePodIdentityPreview"
@@ -77,7 +78,7 @@ az aks create -g $resourceGroupName -n $aksName `
   --node-count 1 --enable-cluster-autoscaler --min-count 1 --max-count 2 `
   --node-osdisk-type "Ephemeral" `
   --node-vm-size "Standard_D8ds_v4" `
-  --kubernetes-version 1.34.2 `
+  --kubernetes-version 1.36.0 `
   --enable-addons monitoring `
   --enable-aad `
   --enable-managed-identity `
@@ -103,6 +104,24 @@ az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
   --os-type Windows `
   --max-pods 150
 
+$nodepool3 = "win25"
+az aks nodepool add -g $resourceGroupName --cluster-name $aksName `
+  --name $nodepool3 `
+  --node-count 0 --enable-cluster-autoscaler --min-count 0 --max-count 2 `
+  --node-osdisk-type "Ephemeral" `
+  --node-vm-size "Standard_D8ds_v4" `
+  --os-type Windows `
+  --os-sku Windows2025 `
+  --enable-fips-image `
+  --max-pods 150
+
+# Code: WindowsSKUNotSupported
+# Message: Requested Windows SKU "Windows2025" is not supported. 
+# Details: "The feature Microsoft.ContainerService/AKSWindows2025Preview is not registered".
+az feature register --namespace "Microsoft.ContainerService" --name "AKSWindows2025Preview"
+az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/AKSWindows2025Preview')].{Name:name,State:properties.state}"
+az provider register --namespace Microsoft.ContainerService
+
 # #######################
 #     _    ____ ____
 #    / \  / ___|  _ \
@@ -119,6 +138,10 @@ az acr build --registry $acrName --platform windows --image "win-helloworld:$ima
 az acr build --registry $acrName --platform windows --image "win-webapp:$imageTag" .\src\aspnet\
 
 az acr build --registry $acrName --platform windows --image "win-webapp-network-tester:$imageTag" .\src\webapp-network-tester\
+
+az acr build --registry $acrName --platform windows --image "win-webapp-network-tester-2025:$imageTag" .\src\webapp-network-tester-2025\
+
+az acr build --registry $acrName --platform windows --image "kubernetesprobedemo:$imageTag" .\src\KubernetesProbeDemo\
 
 # Size of "win-helloworld:
 $sizeInBytes1 = (az acr manifest list-metadata -r $acrName -n "win-helloworld" --query '[].{Size: imageSize, Tags: tags}' | jq ".[0].Size")
@@ -187,6 +210,8 @@ kubectl get nodes -L agentpool
 kubectl get nodes -o custom-columns="NAME:.metadata.name, OS:.status.nodeInfo.operatingSystem, IMAGE:.status.nodeInfo.osImage, RUNTIME:.status.nodeInfo.containerRuntimeVersion"
 kubectl get nodes -o yaml
 
+#region Demo namespace
+
 # Deploy all items from demo namespace
 kubectl apply -f deploy/demo/namespace.yaml
 kubectl apply -f deploy/demo/service.yaml
@@ -213,6 +238,9 @@ kubectl exec --stdin --tty $demo_pod -n demo -- cmd
 exit
 ####
 
+#endregion
+
+#region HelloWorld namespace
 # Deploy all items from helloworld namespace
 kubectl apply -f deploy/helloworld/namespace.yaml
 Get-Content deploy/helloworld/deployment.yaml | `
@@ -260,6 +288,18 @@ type C:\Temp\procmonlog.csv | more
 exit
 ####
 
+kubectl describe $helloworld_pod -n helloworld
+kubectl get service -n helloworld
+
+$helloworld_ip = (kubectl get service -n helloworld -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
+$helloworld_ip
+
+curl $helloworld_ip
+# -> <html>...Hello World from Windows Container running in AKS...</html>
+#endregion
+
+#region HostProcess
+
 # HostProcess container for running Procmon with full kernel access
 # https://learn.microsoft.com/en-us/virtualization/windowscontainers/kubernetes/hostprocess-containers
 kubectl apply -f deploy/demo/hostprocess-debug.yaml
@@ -305,15 +345,9 @@ type C:\Temp\procmonlog.csv | more
 exit
 ####
 
-kubectl describe $helloworld_pod -n helloworld
-kubectl get service -n helloworld
+#endregion
 
-$helloworld_ip = (kubectl get service -n helloworld -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
-$helloworld_ip
-
-curl $helloworld_ip
-# -> <html>...Hello World from Windows Container running in AKS...</html>
-
+#region Aspnet namespace
 # Deploy all items from aspnet namespace
 kubectl apply -f deploy/aspnet/namespace.yaml
 Get-Content deploy/aspnet/deployment.yaml | `
@@ -337,6 +371,10 @@ $aspnet_ip
 
 curl $aspnet_ip
 
+#endregion
+
+#region WebApp Network Tester namespace
+
 # Deploy all items from webapp-network-tester namespace
 kubectl apply -f deploy/webapp-network-tester/namespace.yaml
 Get-Content deploy/webapp-network-tester/deployment.yaml | `
@@ -344,6 +382,8 @@ Get-Content deploy/webapp-network-tester/deployment.yaml | `
   ForEach-Object { $_ -Replace "__imageTag__", $imageTag } | `
   kubectl apply -f -
 kubectl apply -f deploy/webapp-network-tester/service.yaml
+
+kubectl delete -f deploy/webapp-network-tester/deployment.yaml
 
 kubectl get deployment -n webapp-network-tester
 kubectl describe deployment -n webapp-network-tester
@@ -362,13 +402,66 @@ $webapp_network_tester_ip
 
 curl $webapp_network_tester_ip
 
+curl "http://$webapp_network_tester_ip/api/Commands" -d "INFO ENV"
+
 ####
 # Connect to using "cmd.exe":
-kubectl exec --stdin --tty $webapp_network_tester_pod -n helloworld -- cmd
+kubectl exec --stdin --tty $webapp_network_tester_pod -n webapp-network-tester -- cmd
 
 # Exit container
 exit
 ####
+
+#endregion
+
+#region Kubernetes Probe Demo
+
+# Deploy all items from kubernetesprobedemo namespace
+kubectl apply -f deploy/kubernetesprobedemo/namespace.yaml
+Get-Content deploy/kubernetesprobedemo/deployment.yaml | `
+  ForEach-Object { $_ -Replace "__acrName__", $acrName } | `
+  ForEach-Object { $_ -Replace "__imageTag__", $imageTag } | `
+  kubectl apply -f -
+kubectl apply -f deploy/kubernetesprobedemo/service.yaml
+
+kubectl delete -f deploy/kubernetesprobedemo/deployment.yaml
+
+kubectl get deployment -n kubernetesprobedemo
+kubectl describe deployment -n kubernetesprobedemo
+
+kubectl get pod -n kubernetesprobedemo
+kubectl describe pod -n kubernetesprobedemo
+
+$webapp_kubernetesprobedemo_pod = (kubectl get pod -n kubernetesprobedemo -o name | Select-Object -First 1)
+$webapp_kubernetesprobedemo_pod
+
+kubectl describe $webapp_kubernetesprobedemo_pod -n kubernetesprobedemo
+kubectl get service -n kubernetesprobedemo
+
+$webapp_kubernetesprobedemo_ip = (kubectl get service -n kubernetesprobedemo -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}")
+$webapp_kubernetesprobedemo_ip
+
+curl $webapp_kubernetesprobedemo_ip
+
+curl "http://$webapp_kubernetesprobedemo_ip/api/ResourceUsage" --data '{ "memory": "10MB" }' -H "Content-Type: application/json" -s | jq .
+curl "http://$webapp_kubernetesprobedemo_ip/api/ResourceUsage" --data '{ "memory": "100MB" }' -H "Content-Type: application/json" -s | jq .
+curl "http://$webapp_kubernetesprobedemo_ip/api/ResourceUsage" --data '{ "memory": "1GB" }' -H "Content-Type: application/json" -s | jq .
+curl "http://$webapp_kubernetesprobedemo_ip/api/ResourceUsage" --data '{ "memory": "10GB" }' -H "Content-Type: application/json" -s | jq .
+
+curl "http://$webapp_kubernetesprobedemo_ip/api/ResourceUsage" -X DELETE # Free the allocated memory
+
+kubectl top node
+kubectl top pod -n kubernetesprobedemo
+
+####
+# Connect to using "cmd.exe":
+kubectl exec --stdin --tty $webapp_kubernetesprobedemo_pod -n kubernetesprobedemo -- cmd
+
+# Exit container
+exit
+####
+
+#endregion
 
 kubectl apply -f deploy/container-azm-ms-agentconfig.yaml
 
