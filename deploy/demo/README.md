@@ -116,6 +116,16 @@ Get-CimInstance Win32_PageFileUsage | Select-Object Name, AllocatedBaseSize, Cur
 
 # Commit limit vs commit charge (the numbers that matter for OOM headroom)
 Get-Counter '\Memory\Commit Limit','\Memory\Committed Bytes','\Memory\% Committed Bytes In Use'
+
+# Authoritative active pagefile(s): path + size the kernel is actually using
+Get-CimInstance Win32_PageFileUsage | Format-List *
+
+# Cross-check: RAM, total virtual, and how much is backed by paging files
+Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, TotalVirtualMemorySize, SizeStoredInPagingFiles
+
+# Free space left on the temp disk that hosts the pagefile
+Import-Module Storage
+Get-Volume -DriveLetter D | Format-List DriveLetter, Size, SizeRemaining
 ```
 
 ```console
@@ -160,6 +170,64 @@ Timestamp                  CounterSamples
                            \\akswin25000003\memory\% committed bytes in use :
                            12.0727062486281
 ```
+
+### Change the pagefile to auto-expand
+
+By default the AKS Windows node image ships a **fixed** pagefile (`AutomaticManagedPagefile = False`,
+`InitialSize = MaximumSize`). You can switch it to auto-expanding using either of the approaches below.
+Run these from inside the HostProcess container (which executes on the host).
+
+> ⚠️ **A node reboot is required** for any pagefile change to take effect.
+>
+> ⚠️ **The change is NOT persistent.** AKS node image upgrades, reimage, scaling, and node auto-repair
+> recreate nodes from the VHD and reset the pagefile back to the baked-in fixed size. To apply it across a
+> pool you must re-run it on every node (e.g. via a HostProcess DaemonSet) after each such operation.
+>
+> ⚠️ Growth is still bounded by **free space on `C:`** and the Windows system-managed cap
+> (max of 3× RAM or 4 GB, but no more than ⅛ of the volume). On a small OS disk the pagefile cannot grow large.
+
+#### Option A: Let Windows manage it (system-managed / fully automatic)
+
+```powershell
+# Hand pagefile sizing back to Windows (auto-grows when commit charge hits ~90%)
+$sys = Get-CimInstance -ClassName Win32_ComputerSystem
+Set-CimInstance -InputObject $sys -Property @{ AutomaticManagedPagefile = $true }
+
+# Verify (should now report True)
+Get-CimInstance Win32_ComputerSystem | Select-Object AutomaticManagedPagefile
+
+# Reboot for the change to take effect
+Restart-Computer -Force
+```
+
+#### Option B: Keep an explicit pagefile but allow it to expand (Initial < Maximum)
+
+```powershell
+# Turn off automatic management so custom sizes are honored
+$sys = Get-CimInstance -ClassName Win32_ComputerSystem
+Set-CimInstance -InputObject $sys -Property @{ AutomaticManagedPagefile = $false }
+
+# Set a smaller initial size and a larger maximum so the pagefile can grow on demand.
+# Sizes are in MB; adjust MaximumSize to your C: free space (here: 8 GB -> up to 32 GB).
+$pf = Get-CimInstance -ClassName Win32_PageFileSetting -Filter "Name='C:\\pagefile.sys'"
+if ($null -eq $pf) {
+  # No explicit setting exists yet (e.g. it was system-managed) - create one
+  New-CimInstance -ClassName Win32_PageFileSetting -Property @{
+    Name = 'C:\pagefile.sys'; InitialSize = 8096; MaximumSize = 32768
+  }
+} else {
+  Set-CimInstance -InputObject $pf -Property @{ InitialSize = 8096; MaximumSize = 32768 }
+}
+
+# Verify the new min/max (Initial < Maximum means it can expand)
+Get-CimInstance Win32_PageFileSetting | Select-Object Name, InitialSize, MaximumSize
+
+# Reboot for the change to take effect
+Restart-Computer -Force
+```
+
+After the node comes back, re-run the inspection commands above and confirm the new values via
+`Get-CimInstance Win32_PageFileUsage` (`AllocatedBaseSize`) and `Get-Counter '\Memory\Commit Limit'`.
 
 ## Security Considerations
 

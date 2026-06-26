@@ -16,7 +16,7 @@ RUN powershell -Command $ErrorActionPreference = 'Stop'; $ProgressPreference = '
 # Deploy the published application from the GitHub release into the IIS web root.
 # The kubernetesprobedemo.zip asset is produced by .github/workflows/release.yml.
 RUN powershell -Command $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; \
-  $APPLICATION_VERSION = 'v1.0.0'; \
+  $APPLICATION_VERSION = 'v1.0.1'; \
   Write-Host Installing KubernetesProbeDemo version: $APPLICATION_VERSION; \
   Invoke-WebRequest https://github.com/JanneMattila/KubernetesProbeDemo/releases/download/$APPLICATION_VERSION/kubernetesprobedemo.zip -OutFile kubernetesprobedemo.zip; \
   Expand-Archive kubernetesprobedemo.zip -DestinationPath kubernetesprobedemo; \
